@@ -7,4 +7,10 @@ router.post('/login',function(req, res, next) {
     res.send(params);
 })
 
+router.post('/register',function(req, res, next) {
+    let params = req.body
+    // params.username
+    res.send(params);
+})
+
 module.exports = router;
