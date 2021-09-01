@@ -290,5 +290,8 @@ modules.xml
 
 # Sonarlint plugin
 .idea/sonarlint
+secret
+secret/*
+secret/**
 
 # End of https://www.toptal.com/developers/gitignore/api/node,webstorm,webstorm+all
