@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const database = require('../model/database');
 
+const database = require('../model/database');
 const checkIfAuthenticated = require("../model/authManajer");
 
 router.get('/interests', function (req, res, next) {

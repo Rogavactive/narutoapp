@@ -1,4 +1,5 @@
 const admin = require('./firebase-service')
+const database = require('./database')
 
 const getAuthToken = (req, res, next) => {
     if (
@@ -19,6 +20,13 @@ module.exports = checkIfAuthenticated = (req, res, next) => {
             req.userInfo = await admin
                 .auth()
                 .verifyIdToken(authToken);
+            let userId = req.userInfo.user_id
+            await database.getUser(userId)
+                .then(async (databaseFirebaseUserId) => {
+                    if (!databaseFirebaseUserId || databaseFirebaseUserId.length === 0) {
+                        await database.addUser(userId)
+                    }
+                })
             return next();
         } catch (e) {
             return res

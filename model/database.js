@@ -10,14 +10,6 @@ const connectionPool = mysql.createPool({
 
 /// Helper functions
 
-async function modifyDatabase(queryString, paramsArr) {
-    return await queryDatabase(queryString, paramsArr)
-}
-
-async function modifyDatabaseSimple(queryString) {
-    return await queryDatabase(queryString, [])
-}
-
 async function queryDatabaseSimple(queryString) {
     return await queryDatabase(queryString, [])
 }
@@ -42,8 +34,98 @@ async function queryDatabase(queryString, paramsArr) {
     }));
 }
 
+async function transaction(queries, queryValues) {
+    return new Promise((resolve, reject) => {
+        connectionPool.getConnection(function (err, connection) {
+            if (queries.length !== queryValues.length) {
+                return reject(
+                    'Number of provided queries did not match the number of provided query values arrays'
+                )
+            }
+            try {
+                connection.beginTransaction((err) => {
+                    if (err){
+                        connection.rollback(() => { reject(err) });
+                        connection.end()
+                    }
+                })
+                const queryPromises = []
+
+                for(let i =0; i< queries.length; i++ ) {
+                    queryPromises.push(async () => { return await queryDatabase(queries[i], queryValues[i])})
+                }
+                queryPromises.reduce(function (prev, curr) {
+                    return prev.then(curr);
+                }, Promise.resolve())
+                    .then((result) => {
+                        connection.commit()
+                        connection.end()
+                        resolve(result)
+                    }).catch((err) => {
+                    connection.rollback(() => { reject(err) })
+                    connection.end()
+                });
+            } catch (err) {
+                connection.rollback(() => { reject(err) })
+                connection.end()
+            }
+        })
+    });
+}
+
 /// Database calls
 
-exports.getSkills = async function () {
+exports.getSkills = async () => {
     return await queryDatabaseSimple('select * from skills')
+}
+
+exports.getUserSkills = async (userId) => {
+    return await queryDatabase(
+        `select skills.name, skills.id from user_skills 
+                    inner join users on users.id = user_skills.user_id 
+                    inner join skills on skills.id = user_skills.user_skill_id
+                    where firebase_id = ?`,
+        [userId])
+}
+
+exports.getUser = async (userId) => {
+    return await queryDatabase(
+        `select id from users where firebase_id = ?`, [userId]
+    )
+}
+
+exports.addUser = async (userId) => {
+    return await queryDatabase(
+        `insert into users(firebase_id) values (?)`, [userId]
+    )
+}
+
+
+
+
+
+// Database calls with transactions
+
+
+exports.replaceUserSkills = async (userId, skills) => {
+    let insertDynamicQuery =
+        `insert into user_skills(user_id, user_skill_id) values `;
+
+    for (let i = 0; i < skills.length; i++ ){
+        insertDynamicQuery += `(
+            (select id from users where firebase_id = "` + userId + `"),
+            ?
+        ),`
+    }
+
+    insertDynamicQuery = insertDynamicQuery.replace(/.$/,";");
+
+    return await transaction([
+        `delete w from user_skills w
+            inner join users on users.id = w.user_id
+            where firebase_id = ?;`,
+        insertDynamicQuery
+    ],[
+        [userId], skills
+    ])
 }
